@@ -16,9 +16,13 @@
  */
 package org.graylog.plugins.beats;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.inject.assistedinject.Assisted;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.inject.Inject;
+
 import org.graylog2.plugin.Message;
 import org.graylog2.plugin.Tools;
 import org.graylog2.plugin.configuration.Configuration;
@@ -31,12 +35,10 @@ import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.inject.Inject;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.inject.assistedinject.Assisted;
 
 import static java.util.Objects.requireNonNull;
 import static org.graylog.plugins.beats.MapUtils.flatten;
@@ -136,7 +138,7 @@ public class BeatsCodec extends AbstractCodec {
         }
 
         return result;
-    }
+	}
 
     /**
      * @see <a href="https://www.elastic.co/guide/en/beats/filebeat/1.2/exported-fields.html">Filebeat Exported Fields</a>
@@ -149,11 +151,22 @@ public class BeatsCodec extends AbstractCodec {
         gelfMessage.addField("input_type", event.get("input_type"));
         gelfMessage.addField("count", event.get("count"));
         gelfMessage.addField("offset", event.get("offset"));
-
+		addEventDataToMessage(event, gelfMessage, "docker");
         return gelfMessage;
     }
 
-    /**
+	private void addEventDataToMessage(Map<String, Object> event, Message gelfMessage, String field) {
+		Object data = event.get(field);
+		if (data != null) {
+			try {
+				gelfMessage.addField(field, objectMapper.writeValueAsString(data));
+			} catch (JsonProcessingException e) {
+				LOG.warn(String.format("Cannot process message for field: %s", field), e);
+			}
+		}
+	}
+
+	/**
      * @see <a href="https://www.elastic.co/guide/en/beats/topbeat/1.2/exported-fields.html">Topbeat Exported Fields</a>
      */
     private Message parseTopbeat(Map<String, Object> event) {

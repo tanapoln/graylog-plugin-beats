@@ -16,8 +16,8 @@
  */
 package org.graylog.plugins.beats;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.io.Resources;
+import java.util.List;
+
 import org.graylog2.plugin.Message;
 import org.graylog2.plugin.configuration.Configuration;
 import org.graylog2.plugin.journal.RawMessage;
@@ -31,7 +31,8 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
-import java.util.List;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.io.Resources;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -73,6 +74,28 @@ public class BeatsCodecTest {
         final List<String> tags = (List<String>) message.getField("tags");
         assertThat(tags).containsOnly("foobar", "test");
     }
+
+	@Test
+	public void decodeMessagesHandlesFilebeatWithDockerMetaMessages() throws Exception {
+		final byte[] json = Resources.toByteArray(Resources.getResource("filebeat-with-docker.json"));
+		final RawMessage rawMessage = new RawMessage(json);
+		final Message message = codec.decode(rawMessage);
+		assertThat(message).isNotNull();
+		assertThat(message.getMessage()).isEqualTo("TEST");
+		assertThat(message.getSource()).isEqualTo("example.local");
+		assertThat(message.getTimestamp()).isEqualTo(new DateTime(2016, 4, 1, 0, 0, DateTimeZone.UTC));
+		assertThat(message.getField("facility")).isEqualTo("filebeat");
+		assertThat(message.getField("file")).isEqualTo("/tmp/test.log");
+		assertThat(message.getField("type")).isEqualTo("log");
+		assertThat(message.getField("count")).isEqualTo(1);
+		assertThat(message.getField("offset")).isEqualTo(0);
+		assertThat(message.getField("docker")).isEqualTo("{\"id\":\"123\",\"name\":\"container-1\",\"labels\":{"
+				+ "\"docker-kubernetes-pod\":\"hello\""
+				+ "}}");
+		@SuppressWarnings("unchecked")
+		final List<String> tags = (List<String>) message.getField("tags");
+		assertThat(tags).containsOnly("foobar", "test");
+	}
 
     @Test
     public void decodeMessagesHandlesPacketbeatMessages() throws Exception {
